@@ -122,6 +122,7 @@ body.locked{overflow:hidden}
 .survey-callout p{margin:10px 0 0;font-size:18px;line-height:1.55}
 .survey-callout b{font-weight:600;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
 .thanks-end{margin-top:28px;color:var(--aqua);font-size:15px}
+.thanks-actions{margin-top:32px;display:flex;gap:12px;flex-wrap:wrap}
 .rv-row.empty .rv-missing{color:var(--danger);font-weight:500}
 
 /* ---------- app bar (questions / review) ---------- */
@@ -454,7 +455,9 @@ details.ex .ex-body p:last-child{margin:0;color:var(--ink-2)}
         <div class="survey-title">ทำ Feedback Survey เพื่อรับสรุป SEO Growth Map</div>
         <p>ทีมงาน Predictive จะส่งสรุป SEO Growth Map ของคุณให้ <b>สำหรับผู้ที่ทำ Feedback Survey</b></p>
       </div>
-      <p class="thanks-end">เวิร์กช็อปส่วนนี้เสร็จแล้ว ปิดหน้านี้ได้เลย</p>
+      <div class="thanks-actions">
+        <button class="btn btn-ghost on-dark" id="btn-home">กลับหน้าแรก</button>
+      </div>
     </div>
   </header>
 </main>
@@ -692,11 +695,26 @@ var state = {id: uid(), company:"", website:"", name:"", answers:{}, submittedAt
 (function load(){
   try { var s = JSON.parse(store(DRAFT_KEY) || "null"); if (s && s.id) state = Object.assign(state, s); } catch(e){}
   state.code = "";
+  if (state.submittedAt){ state = {id: uid(), company:"", website:"", name:"", answers:{}, submittedAt:null, submittedSnapshot:null}; }
   for (var i = 1; i <= 18; i++) if (!state.answers[i]) state.answers[i] = {finding:"", output:""};
 })();
 var saveTimer = null;
 function persist(){ var copy = Object.assign({}, state); delete copy.code; store(DRAFT_KEY, JSON.stringify(copy)); }
 function saveDraft(){ clearTimeout(saveTimer); saveTimer = setTimeout(persist, 300); }
+var lastSubmitted = null;
+/* ส่งเสร็จแล้วล้างฟอร์มในเครื่อง เพื่อให้กลับไปหน้าแรกแล้วเริ่มใหม่ได้เสมอ (รหัสที่ใส่ยังอยู่ในหน้านี้) */
+function resetAfterSubmit(){
+  var code = state.code;
+  state = {id: uid(), company:"", website:"", name:"", answers:{}, submittedAt:null, submittedSnapshot:null, code: code};
+  for (var i = 1; i <= 18; i++) state.answers[i] = {finding:"", output:""};
+  persist();
+  ["f-company","f-website","f-name"].forEach(function(id){ $(id).value = ""; $(id).classList.remove("invalid"); });
+  $("dup-company").classList.add("hidden"); $("err-company").classList.add("hidden");
+  $("resume-note").classList.add("hidden"); $("btn-start").textContent = "เริ่มตอบคำถาม";
+  var fields = document.querySelectorAll("#phases [data-f]");
+  for (var j = 0; j < fields.length; j++){ fields[j].value = ""; if (fields[j].tagName === "TEXTAREA") autosize(fields[j]); }
+  updateProgress();
+}
 function snapshot(){ return JSON.stringify({c:state.company, w:state.website, n:state.name, a:state.answers}); }
 function hasUnsentChanges(){ return !!state.submittedAt && state.submittedSnapshot !== snapshot(); }
 
@@ -742,7 +760,7 @@ function onHistory(st){
   if (v === "admin" && !sstore("pdt_admin_key")) v = "gate";
   if ((v === "start" || v === "questions" || v === "review") && !state.code) v = "gate";
   if ((v === "questions" || v === "review") && !state.company) v = state.code ? "start" : "gate";
-  if (state.submittedAt && v !== "admin" && v !== "gate") v = "thanks";
+  if (v === "thanks" && !lastSubmitted) v = state.code ? "start" : "gate";
   show(v, true);
 }
 function goBack(){
@@ -765,7 +783,8 @@ function show(view, fromHistory){
   }
   if (view === "review") renderReview();
   if (view === "thanks"){
-    $("thanks-company").innerHTML = '<b>' + esc(state.company) + '</b> · ส่งเมื่อ ' + fmtDate(state.submittedAt) + ' · ตอบครบ 18 stages';
+    var ls = lastSubmitted || {company: state.company, at: state.submittedAt};
+    $("thanks-company").innerHTML = '<b>' + esc(ls.company) + '</b> · ส่งเมื่อ ' + fmtDate(ls.at) + ' · ตอบครบ 18 stages';
   }
   window.scrollTo({top:0, left:0, behavior:"instant"});
 }
@@ -915,9 +934,8 @@ function submit(){
   btn.disabled = true; btn.textContent = "กำลังส่ง…"; $("submit-err").classList.add("hidden");
   var payload = {id:state.id, code:state.code, company:state.company, website:state.website, name:state.name, answers:state.answers};
   callServer("submitResponse", payload).then(function(res){
-    state.id = res.id || state.id;
-    state.submittedAt = res.updatedAt || new Date().toISOString();
-    persist();
+    lastSubmitted = {company: state.company, at: res.updatedAt || new Date().toISOString()};
+    resetAfterSubmit();
     setHistory("thanks", true);
     show("thanks", true);
   }).catch(function(e){
@@ -1203,6 +1221,7 @@ function boot(page){
   else window.addEventListener("popstate", function(e){ onHistory(e.state); });
   $("btn-back-start").addEventListener("click", function(){ show("start"); });
   $("btn-submit").addEventListener("click", submit);
+  $("btn-home").addEventListener("click", function(){ show(state.code ? "start" : "gate"); });
   $("rv-phases").addEventListener("click", function(e){
     var n = e.target.getAttribute && e.target.getAttribute("data-edit"); if (!n) return;
     show("questions"); setTimeout(function(){ jumpTo(+n); }, 30);
