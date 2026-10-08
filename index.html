@@ -73,6 +73,9 @@ button,input,textarea{font:inherit;color:inherit}
 .textarea{min-height:88px;resize:vertical;line-height:1.6}
 .field-error{color:var(--danger);font-size:14px;margin-top:6px}
 .input.invalid{border-color:var(--danger)}
+.dup-box{margin:-6px 0 18px;padding:14px 16px;border:1.5px solid var(--danger);background:#FFF5F5;border-radius:10px;font-size:15px}
+.dup-box p{margin:0 0 10px}
+.dup-box b{color:var(--danger)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 @media (max-width:620px){.grid-2{grid-template-columns:1fr}}
 
@@ -92,11 +95,20 @@ button,input,textarea{font:inherit;color:inherit}
 .resume-note{font-size:14px;color:var(--ink-2)}
 
 /* ---------- gate ---------- */
-.gate{min-height:100vh;padding-bottom:64px}
-.gate-box{margin-top:44px;max-width:440px;background:var(--white);color:var(--ink);border-radius:16px;padding:28px}
-.gate-box h2{font-size:21px;margin-bottom:4px}
-.gate-box .sub{margin-bottom:18px}
-.gate-box .btn{width:100%}
+.gate-overlay{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(0,44,63,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);overflow-y:auto}
+.gate-modal{width:100%;max-width:420px;background:var(--white);color:var(--ink);border-radius:18px;padding:30px 28px 22px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5)}
+.gate-modal .logo{height:30px;width:auto;display:block}
+.gate-kicker{margin:18px 0 2px;color:var(--ocean);font:600 14px/1.4 var(--head)}
+.gate-modal h2{font-size:23px;margin-bottom:4px}
+.gate-modal .sub{margin-bottom:18px}
+.gate-modal .btn-primary{width:100%}
+.code-hint{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;padding:14px 18px;background:var(--tint);border:2px dashed var(--cyan);border-radius:12px}
+.code-hint span{font-weight:600;color:var(--ink-2)}
+.code-hint b{font:700 34px/1 var(--head);letter-spacing:.18em;color:var(--navy)}
+.gate-switch{margin-top:20px;padding-top:14px;border-top:1px solid var(--line);text-align:center}
+.linkish{background:none;border:0;padding:4px;color:var(--ocean);font:500 14px/1.4 var(--body);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.gate-modal.is-admin{border-top:6px solid var(--navy)}
+body.locked{overflow:hidden}
 
 /* ---------- thank-you (final page) ---------- */
 .thanks{min-height:100vh;padding-bottom:64px}
@@ -286,31 +298,28 @@ details.ex .ex-body p:last-child{margin:0;color:var(--ink-2)}
 </style>
 </head>
 <body>
-<div id="demo-banner" class="demo hidden">
-  โหมดทดลอง: คำตอบถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น ใส่รหัส 123 เพื่อเข้าแบบผู้เข้าร่วม รหัสอื่นจะเข้าหน้า Admin (เฉพาะโหมดทดลอง) ·
-  <a href="#" id="demo-gate-link">กลับหน้าใส่รหัส</a> · <a href="#" id="demo-reset-link">ล้างคำตอบในเครื่องนี้</a>
-</div>
+<div id="demo-banner" class="demo hidden">โหมดทดลอง: เปิดไฟล์นอก Google Apps Script คำตอบจะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น</div>
 
-<!-- ===================== VIEW 0: ACCESS CODE ===================== -->
-<main id="view-gate" class="hidden">
-  <header class="hero gate">
-    <div class="wrap">
-      <img class="logo" id="gate-logo" alt="Predictive">
-      <p class="hero-kicker">SEO Business Growth Workshop</p>
-      <h1>The Future of Search Won't Wait Until 2027</h1>
-      <div class="gate-box">
-        <h2>ใส่รหัสเข้าใช้งาน</h2>
-        <p class="sub">ใช้รหัสที่ได้รับจากทีมงาน Predictive ในงาน</p>
-        <label class="field">
-          <span class="field-label">รหัสเข้าใช้งาน</span>
-          <input class="input" id="f-code" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
-        </label>
-        <button class="btn btn-primary" id="btn-enter">เข้าสู่เวิร์กช็อป</button>
-        <div class="err hidden" id="gate-err"></div>
-      </div>
+<!-- ===================== ACCESS CODE POPUP ===================== -->
+<div id="view-gate" class="gate-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+  <div class="gate-modal" id="gate-modal">
+    <img class="logo" id="gate-logo" alt="Predictive">
+    <p class="gate-kicker">SEO Business Growth Workshop</p>
+    <h2 id="gate-title">ใส่รหัสเพื่อเข้าใช้งาน</h2>
+    <p class="sub" id="gate-sub">พิมพ์รหัสด้านล่างเพื่อเริ่มเวิร์กช็อป</p>
+    <div class="code-hint" id="code-hint">
+      <span>รหัสเข้าใช้งาน</span>
+      <b id="code-hint-value">123</b>
     </div>
-  </header>
-</main>
+    <label class="field">
+      <span class="field-label" id="gate-label">รหัสเข้าใช้งาน</span>
+      <input class="input" id="f-code" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <button class="btn btn-primary" id="btn-enter">เข้าสู่เวิร์กช็อป</button>
+    <div class="err hidden" id="gate-err"></div>
+    <div class="gate-switch"><button type="button" class="linkish" id="gate-mode">สำหรับทีมงาน: เข้าสู่ระบบ Admin</button></div>
+  </div>
+</div>
 
 <!-- ===================== VIEW 1: START ===================== -->
 <main id="view-start" class="hidden">
@@ -335,6 +344,7 @@ details.ex .ex-body p:last-child{margin:0;color:var(--ink-2)}
         <input class="input" id="f-company" type="text" autocomplete="organization" maxlength="200" placeholder="เช่น บริษัท ตัวอย่าง จำกัด">
         <div class="field-error hidden" id="err-company">กรอกชื่อบริษัทก่อนเริ่มตอบคำถาม</div>
       </label>
+      <div class="dup-box hidden" id="dup-company" role="alert"></div>
       <div class="grid-2">
         <label class="field">
           <span class="field-label">เว็บไซต์ที่จะใช้ในเวิร์กช็อป<small>ไม่บังคับ</small></span>
@@ -600,17 +610,27 @@ function fmtDate(iso){
   return d.toLocaleString("th-TH", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
 }
 function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch(e){ return null; } }
-function sstore(k, v){ try { if (v === undefined) return sessionStorage.getItem(k); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch(e){ return null; } }
+/* รหัสเก็บไว้ในหน่วยความจำของหน้าเท่านั้น: รีเฟรชหรือเปิดใหม่ต้องใส่รหัสทุกครั้ง */
+var memKeys = {};
+function sstore(k, v){ if (v === undefined) return memKeys[k] || null; if (v === null) delete memKeys[k]; else memKeys[k] = v; }
+try { sessionStorage.removeItem("pdt_admin_key"); } catch(e){}
 function isAnswered(a){ return !!(a && ((a.finding || "").trim() || (a.output || "").trim())); }
 function countAnswered(ans){ var c = 0; for (var i = 1; i <= 18; i++) if (isAnswered(ans && ans[i])) c++; return c; }
 
 /* ================= server bridge (Apps Script or demo) ================= */
 var IS_GAS = typeof google !== "undefined" && google.script && google.script.run;
 var DEMO_KEY = "pdt_seo_ws_demo_db";
+function demoHash(s){ var h = 2166136261; s = String(s || ""); for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+var DEMO_ADMIN_HASH = 104724732;
+function normName(s){ return String(s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+function demoNames(db, id){ var o = {}; db.forEach(function(r){ if (r.id !== id) o[normName(r.company)] = true; }); return o; }
+function suggestName(company, names){ var base = String(company).trim().replace(/\s+/g, " ").replace(/\s\d+$/, ""), n = 1; while (names[normName(base + " " + n)]) n++; return base + " " + n; }
 var demoServer = {
   submitResponse: function(p){
     var db = []; try { db = JSON.parse(store(DEMO_KEY) || "[]"); } catch(e){}
     if (countAnswered(p.answers) < 18) return Promise.reject(new Error("กรุณาตอบให้ครบทั้ง 18 stages ก่อนส่ง"));
+    var taken = demoNames(db, p.id);
+    if (taken[normName(p.company)]) return Promise.reject(new Error("DUPLICATE::" + suggestName(p.company, taken)));
     var now = new Date().toISOString(), id = p.id || uid();
     var prev = db.filter(function(r){ return r.id === id; })[0];
     var row = {id:id, createdAt: prev ? prev.createdAt : now, updatedAt: now, company:p.company, website:p.website, name:p.name, answered: countAnswered(p.answers), answers: p.answers};
@@ -628,8 +648,14 @@ var demoServer = {
     try { store(DEMO_KEY, JSON.stringify(db)); } catch(e){ return Promise.reject(new Error("พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม")); }
     return Promise.resolve({ok:true, updatedAt: now});
   },
+  checkCompany: function(p){
+    var db = []; try { db = JSON.parse(store(DEMO_KEY) || "[]"); } catch(e){}
+    var names = demoNames(db, p.id);
+    return Promise.resolve(names[normName(p.company)] ? {taken:true, suggestion: suggestName(p.company, names)} : {taken:false});
+  },
   verifyAccess: function(code){
-    return Promise.resolve({role: code === "123" ? "attendee" : "admin"});
+    var role = code === "123" ? "attendee" : (demoHash(code) === DEMO_ADMIN_HASH ? "admin" : null);
+    return Promise.resolve({role: role});
   },
   getResponses: function(){
     var db = []; try { db = JSON.parse(store(DEMO_KEY) || "[]"); } catch(e){}
@@ -649,10 +675,12 @@ var DRAFT_KEY = "pdt_seo_ws_draft_v1";
 var state = {id: uid(), company:"", website:"", name:"", answers:{}, submittedAt:null, submittedSnapshot:null};
 (function load(){
   try { var s = JSON.parse(store(DRAFT_KEY) || "null"); if (s && s.id) state = Object.assign(state, s); } catch(e){}
+  state.code = "";
   for (var i = 1; i <= 18; i++) if (!state.answers[i]) state.answers[i] = {finding:"", output:""};
 })();
 var saveTimer = null;
-function saveDraft(){ clearTimeout(saveTimer); saveTimer = setTimeout(function(){ store(DRAFT_KEY, JSON.stringify(state)); }, 300); }
+function persist(){ var copy = Object.assign({}, state); delete copy.code; store(DRAFT_KEY, JSON.stringify(copy)); }
+function saveDraft(){ clearTimeout(saveTimer); saveTimer = setTimeout(persist, 300); }
 function snapshot(){ return JSON.stringify({c:state.company, w:state.website, n:state.name, a:state.answers}); }
 function hasUnsentChanges(){ return !!state.submittedAt && state.submittedSnapshot !== snapshot(); }
 
@@ -708,7 +736,11 @@ function goBack(){
 function show(view, fromHistory){
   if (!fromHistory && view !== current) setHistory(view, false);
   current = view;
-  ["gate","start","questions","review","thanks","admin"].forEach(function(v){ $("view-" + v).classList.toggle("hidden", v !== view); });
+  ["gate","start","questions","review","thanks","admin"].forEach(function(v){ $("view-" + v).classList.toggle("hidden", v !== view && !(view === "gate" && v === "start")); });
+  var locked = view === "gate";
+  document.body.classList.toggle("locked", locked);
+  try { $("view-start").inert = locked; } catch(e){}
+  if (locked){ setGateMode(gateMode); setTimeout(function(){ try { $("f-code").focus(); } catch(e){} }, 30); }
   $("bar").classList.toggle("hidden", !(view === "questions" || view === "review"));
   if (view === "questions" || view === "review"){
     $("bar-company").innerHTML = '<b>' + esc(state.company) + '</b>' + (state.website ? " · " + esc(state.website) : "");
@@ -736,15 +768,43 @@ function initStart(){
   if (startInited) return;
   startInited = true;
   ["company","website","name"].forEach(function(k){
-    $("f-" + k).addEventListener("input", function(e){ state[k] = e.target.value; if (k === "company"){ $("f-company").classList.remove("invalid"); $("err-company").classList.add("hidden"); } saveDraft(); });
+    $("f-" + k).addEventListener("input", function(e){ state[k] = e.target.value; if (k === "company"){ $("f-company").classList.remove("invalid"); $("err-company").classList.add("hidden"); $("dup-company").classList.add("hidden"); } saveDraft(); });
   });
   $("btn-start").addEventListener("click", function(){
     state.company = $("f-company").value.trim();
     state.website = $("f-website").value.trim();
     state.name = $("f-name").value.trim();
     if (!state.company){ $("f-company").classList.add("invalid"); $("err-company").classList.remove("hidden"); $("f-company").focus(); return; }
-    saveDraft(); show("questions");
+    var btn = $("btn-start"), label = btn.textContent;
+    btn.disabled = true; btn.textContent = "กำลังตรวจชื่อบริษัท…";
+    callServer("checkCompany", {code: state.code, company: state.company, id: state.id}).then(function(res){
+      if (res && res.taken){ showDuplicate(state.company, res.suggestion); return; }
+      saveDraft(); show("questions");
+    }).catch(function(e){
+      showDuplicateError(errMsg(e));
+    }).then(function(){ btn.disabled = false; btn.textContent = label; });
   });
+  $("dup-company").addEventListener("click", function(e){
+    var s = e.target.getAttribute && e.target.getAttribute("data-suggest"); if (!s) return;
+    $("f-company").value = s; state.company = s; saveDraft();
+    $("dup-company").classList.add("hidden"); $("f-company").classList.remove("invalid"); $("f-company").focus();
+  });
+}
+
+function showDuplicate(name, suggestion){
+  $("f-company").classList.add("invalid");
+  $("dup-company").innerHTML = '<p>ชื่อบริษัท <b>“' + esc(name) + '”</b> ถูกใช้แล้ว กรุณาเพิ่มตัวเลขต่อท้ายเพื่อให้ไม่ซ้ำ เช่น <b>“' + esc(suggestion) + '”</b></p>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-suggest="' + esc(suggestion) + '">ใช้ชื่อ “' + esc(suggestion) + '”</button>';
+  $("dup-company").classList.remove("hidden");
+  $("f-company").focus();
+}
+function showDuplicateError(msg){
+  $("dup-company").innerHTML = '<p>' + esc("ตรวจชื่อบริษัทไม่สำเร็จ: " + msg) + ' ลองกดอีกครั้ง</p>';
+  $("dup-company").classList.remove("hidden");
+}
+function parseDuplicate(e){
+  var m = errMsg(e), i = m.indexOf("DUPLICATE::");
+  return i >= 0 ? m.slice(i + 11).trim() : null;
 }
 
 /* ---------- view 2 ---------- */
@@ -841,10 +901,12 @@ function submit(){
   callServer("submitResponse", payload).then(function(res){
     state.id = res.id || state.id;
     state.submittedAt = res.updatedAt || new Date().toISOString();
-    store(DRAFT_KEY, JSON.stringify(state));
+    persist();
     setHistory("thanks", true);
     show("thanks", true);
   }).catch(function(e){
+    var sug = parseDuplicate(e);
+    if (sug){ var name = state.company; show("start"); showDuplicate(name, sug); return; }
     renderReview();
     $("submit-err").textContent = "ส่งไม่สำเร็จ: " + errMsg(e) + " คำตอบยังอยู่ครบในเครื่องนี้ ลองกดส่งอีกครั้ง";
     $("submit-err").classList.remove("hidden");
@@ -866,7 +928,7 @@ function openAdmin(key){
 }
 function adminLogout(){
   sstore("pdt_admin_key", null); clearInterval(admin.timer); admin.rows = []; admin.open = {};
-  $("list").innerHTML = ""; show("gate");
+  $("list").innerHTML = ""; gateMode = "attendee"; show("gate");
 }
 function adminRefresh(){
   var key = sstore("pdt_admin_key"); if (!key) return;
@@ -1071,35 +1133,50 @@ function initAdmin(){
 
 /* ================= access gate ================= */
 function gateError(msg){ $("gate-err").textContent = msg; $("gate-err").classList.remove("hidden"); }
-function enterCode(){
-  var code = $("f-code").value.trim();
+var gateMode = "attendee";
+function setGateMode(mode){
+  gateMode = mode;
+  var admin = mode === "admin";
+  $("gate-modal").classList.toggle("is-admin", admin);
+  $("gate-title").textContent = admin ? "เข้าสู่ระบบ Admin" : "ใส่รหัสเพื่อเข้าใช้งาน";
+  $("gate-sub").textContent = admin ? "สำหรับทีมงาน Predictive เพื่อดูคำตอบของทุกบริษัท" : "พิมพ์รหัสด้านล่างเพื่อเริ่มเวิร์กช็อป";
+  $("code-hint").classList.toggle("hidden", admin);
+  $("gate-label").textContent = admin ? "รหัสผ่าน Admin" : "พิมพ์รหัสที่นี่";
+  $("f-code").type = admin ? "password" : "text";
+  $("btn-enter").textContent = admin ? "เข้าสู่ระบบ Admin" : "เข้าสู่เวิร์กช็อป";
+  $("gate-mode").textContent = admin ? "กลับไปหน้าผู้เข้าร่วมงาน" : "สำหรับทีมงาน: เข้าสู่ระบบ Admin";
   $("gate-err").classList.add("hidden");
-  if (!code){ gateError("ใส่รหัสเข้าใช้งานก่อน"); $("f-code").focus(); return; }
-  var btn = $("btn-enter"); btn.disabled = true; btn.textContent = "กำลังตรวจรหัส…";
+  $("f-code").value = "";
+}
+function enterCode(){
+  var code = $("f-code").value.trim(), mode = gateMode;
+  $("gate-err").classList.add("hidden");
+  if (!code){ gateError(mode === "admin" ? "ใส่รหัสผ่าน Admin ก่อน" : "ใส่รหัสเข้าใช้งานก่อน"); $("f-code").focus(); return; }
+  var btn = $("btn-enter"), label = btn.textContent; btn.disabled = true; btn.textContent = "กำลังตรวจรหัส…";
   callServer("verifyAccess", code).then(function(res){
     var role = res && res.role;
-    if (role === "admin") return openAdmin(code);
-    if (role === "attendee"){
-      state.code = code; store(DRAFT_KEY, JSON.stringify(state));
+    if (mode === "admin" && role === "admin") return openAdmin(code);
+    if (mode === "attendee" && role === "attendee"){
+      state.code = code; persist();
       initStart(); show(state.submittedAt ? "thanks" : "start"); return;
     }
-    throw new Error("รหัสไม่ถูกต้อง ลองตรวจสอบอีกครั้ง");
+    throw new Error(mode === "admin" ? "รหัสผ่าน Admin ไม่ถูกต้อง" : "รหัสไม่ถูกต้อง ลองตรวจสอบอีกครั้ง");
   }).then(function(){ $("f-code").value = ""; })
-  .catch(function(e){ gateError(errMsg(e)); })
-  .then(function(){ btn.disabled = false; btn.textContent = "เข้าสู่เวิร์กช็อป"; });
+  .catch(function(e){ gateError(errMsg(e)); $("f-code").select(); })
+  .then(function(){ btn.disabled = false; btn.textContent = label; });
 }
 function initGate(){
-  $("gate-logo").src = $("thanks-logo").src = document.querySelector("#view-start .hero .logo").src;
+  $("gate-logo").src = document.querySelector("#view-start .rv-company .print-logo, .print-logo").src;
+  $("thanks-logo").src = document.querySelector("#view-start .hero .logo").src;
   $("btn-enter").addEventListener("click", enterCode);
   $("f-code").addEventListener("keydown", function(e){ if (e.key === "Enter") enterCode(); });
+  $("gate-mode").addEventListener("click", function(){ setGateMode(gateMode === "admin" ? "attendee" : "admin"); $("f-code").focus(); });
 }
 
 /* ================= boot ================= */
 function boot(page){
   if (!IS_GAS){
     $("demo-banner").classList.remove("hidden");
-    $("demo-reset-link").addEventListener("click", function(e){ e.preventDefault(); store(DRAFT_KEY, null); location.reload(); });
-    $("demo-gate-link").addEventListener("click", function(e){ e.preventDefault(); sstore("pdt_admin_key", null); clearInterval(admin.timer); show("gate"); });
   }
   initGate(); initStart(); renderQuestions(); initAdmin();
   $("bar-action").addEventListener("click", function(){ show(current === "questions" ? "review" : "questions"); });
@@ -1114,14 +1191,9 @@ function boot(page){
     var n = e.target.getAttribute && e.target.getAttribute("data-edit"); if (!n) return;
     show("questions"); setTimeout(function(){ jumpTo(+n); }, 30);
   });
-  var savedAdmin = sstore("pdt_admin_key");
-  var first = !state.code ? "gate" : (state.submittedAt ? "thanks" : "start");
-  setHistory(first, true);
-  show(first, true);
-  if (savedAdmin){
-    show("gate", true);
-    openAdmin(savedAdmin).catch(function(){ sstore("pdt_admin_key", null); });
-  }
+  setHistory("gate", true);
+  show("gate", true);
+  setTimeout(function(){ try { $("f-code").focus(); } catch(e){} }, 50);
 }
 if (IS_GAS && google.script.url){
   google.script.url.getLocation(function(loc){ boot((loc && loc.parameter && loc.parameter.page) || ""); });
